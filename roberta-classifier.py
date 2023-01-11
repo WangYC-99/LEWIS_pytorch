@@ -1,5 +1,9 @@
 # coding=utf-8
-# Copyright (c) 2022, Frederick Yuanchun Wang. wyc99@mail.nwpu.edu.cn 
+#
+# Copyright (c) 2022
+# Frederick Yuanchun Wang
+# frederickwang99@gmail.com
+#
 # All rights reserved.
 #     
 #  ___      ___       __       ___
@@ -67,7 +71,7 @@ parser.add_argument('--epoch', type=int, default=100,
                        help='epoch')
 parser.add_argument('--learning_rate', type=float, default=1e-6,
                        help='learning_rate')
-parser.add_argument('--val_per_ite', type=int, default=5,
+parser.add_argument('--val_per_ite', type=int, default=50,
                        help='validation per how many iterations')
 parser.add_argument('--model_save', default='/zhangpai25/wyc/lewis/lewis_wyc/saved_ckpts',
                        help='path to ckpt save dir')
@@ -396,71 +400,6 @@ def valid(args):
     print('validation finished, loss:{}, acc:{}'.format(valid_loss, valid_acc))
     return valid_loss, valid_acc
 
-
-
-def eval(args):
-    print("eval : start loading data...")
-    train_inputs, train_targets = load_data('val')
-
-    print("data loaded! ")
-    # epochs = args.epoch
-    # batch_size = args.batch_size
-    # data_dir = args.data_dir
-    batch_size = 1
-
-    train_sentence_loader = Data.DataLoader(
-        dataset=train_inputs,
-        batch_size=batch_size,  # 每块的大小
-    )
-    train_label_loader = Data.DataLoader(
-        dataset=train_targets,
-        batch_size=batch_size,
-    )
-    bert_classifier_model = RoBERTa_classifier()
-    bert_classifier_model.load_state_dict(torch.load(args.model_save + '/saved.pkl'))
-    # bert_classifier_model.to(args.device)
-
-    print("model saved in " + args.model_save + '/saved.pkl' + " validating start...")
-    bert_classifier_model.eval()
-
-    sentence_cnt = 0
-    sentence_correct_cnt = 0
-    sentence_inco_cnt = 0
-    binary_acc_list = []
-
-    for sentences, labels in zip(train_sentence_loader, train_label_loader):
-
-        # labels = labels.to(args.device)
-        result = bert_classifier_model(sentences).cpu()
-        loss_ite = 0
-        correct_cnt = 0
-        inco_cnt = 0
-        for each_result in result:
-
-            if labels[0].cpu().detach().numpy()[loss_ite][0] == 1:
-                if torch.argmax(each_result).item() == 0:
-                    correct_cnt += 1
-                else:
-                    inco_cnt += 1
-            else:
-                if torch.argmax(each_result).item() == 1:
-                    correct_cnt += 1
-                else:
-                    inco_cnt += 1
-        acc = correct_cnt / (correct_cnt + inco_cnt)
-        binary_acc_list.append(acc)
-        if acc == 1:
-            sentence_correct_cnt += 1
-        else:
-            sentence_inco_cnt += 1
-        sentence_cnt += 1
-        if sentence_cnt == 100:
-            break
-
-    sentence_acc = sentence_correct_cnt / (sentence_correct_cnt + sentence_inco_cnt)
-    binary_acc = np.mean(binary_acc_list)
-    print('validation end, binary_acc: {}; sentence_acc:{}'.format(binary_acc, sentence_acc))
-    return binary_acc, sentence_acc
 
 if __name__ == '__main__':
     time = datetime.datetime.now()
