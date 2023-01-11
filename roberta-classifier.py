@@ -71,12 +71,16 @@ parser.add_argument('--epoch', type=int, default=100,
                        help='epoch')
 parser.add_argument('--learning_rate', type=float, default=1e-6,
                        help='learning_rate')
-parser.add_argument('--val_per_ite', type=int, default=50,
+parser.add_argument('--val_per_ite', type=int, default=20,
                        help='validation per how many iterations')
 parser.add_argument('--model_save', default='/zhangpai25/wyc/lewis/lewis_wyc/saved_ckpts',
                        help='path to ckpt save dir')
 parser.add_argument('--device', default='cpu',
                        help='the device you want to use to train')
+parser.add_argument('--instruction', default='train',
+                        help='choose from train / test/ infer')
+parser.add_argument('--ckpt_path', default='', )
+
 args, others_list = parser.parse_known_args() # 解析已知参数
 
 def load_data(arg_mode):
@@ -86,11 +90,14 @@ def load_data(arg_mode):
     # targets = train_df[1].values
     # train_inputs, test_inputs, train_targets, test_targets = train_test_split(sentences, targets)
     if arg_mode == 'train':
-        typed_data_dir = '/zhangpai25/wyc/lewis/lewis_wyc/datasets_used/chinese/processed/hlm_large/domain-1-typed/train.txt'
-        untyped_data_dir = '/zhangpai25/wyc/lewis/lewis_wyc/datasets_used/chinese/processed/hlm_large/domain-2-untyped/train.txt'
+        typed_data_dir = '/zhangpai25/wyc/lewis/lewis_wyc/datasets_used/chinese/processed/hlm/domain-1-typed/train.txt'
+        untyped_data_dir = '/zhangpai25/wyc/lewis/lewis_wyc/datasets_used/chinese/processed/hlm/domain-2-untyped/train.txt'
     elif arg_mode == 'val':
-        typed_data_dir = '/zhangpai25/wyc/lewis/lewis_wyc/datasets_used/chinese/processed/hlm_large/domain-1-typed/valid.txt'
-        untyped_data_dir = '/zhangpai25/wyc/lewis/lewis_wyc/datasets_used/chinese/processed/hlm_large/domain-2-untyped/valid.txt'
+        typed_data_dir = '/zhangpai25/wyc/lewis/lewis_wyc/datasets_used/chinese/processed/hlm/domain-1-typed/valid.txt'
+        untyped_data_dir = '/zhangpai25/wyc/lewis/lewis_wyc/datasets_used/chinese/processed/hlm/domain-2-untyped/valid.txt'
+    elif arg_mode == 'test':
+        typed_data_dir = '/zhangpai25/wyc/lewis/lewis_wyc/datasets_used/chinese/processed/hlm/domain-1-typed/test.txt'
+        untyped_data_dir = '/zhangpai25/wyc/lewis/lewis_wyc/datasets_used/chinese/processed/hlm/domain-2-untyped/test.txt'
 
     train_inputs = []
     train_targets = []
@@ -190,6 +197,7 @@ def get_feas_by_hook(model):
     return fea_hooks
 
 def train(args):
+    print('training start')
     print("start loading data...")
     train_inputs, train_targets = load_data('train')
 
@@ -284,7 +292,7 @@ def train(args):
 
             optimizer.zero_grad()
             loss.backward()
-            print('this is iteration : {} and loss : {}'.format(iteration, loss))
+            print('this is iteration : {} and train loss : {} and train acc : {}'.format(iteration, loss, acc))
             # break
             optimizer.step()
             loss_list.append(loss.cpu().detach().numpy())
@@ -297,6 +305,7 @@ def train(args):
                 writer.add_scalar("valid_acc", acc, iteration)
                 if acc >= best_eval:
                     best_eval = acc
+                    torch.save(roberta_classifier_model.state_dict(), args.model_save + '/best.pkl')
                     es_count = 0
                 else:
                     es_count += 1
@@ -356,8 +365,11 @@ def valid(args):
 
     valid_loss = 0
     valid_acc = 0
-     
+    
+    num_counter = 0
+
     for sentences, labels in zip(train_sentence_loader, train_label_loader):
+        num_counter += 1
         # print('sentences are : {} and labels are: {}'.format(sentences, labels))
         # exit()
         # labels = labels.to(args.device)
@@ -395,19 +407,147 @@ def valid(args):
         # loss.requ
         iteration += 1
     
-    valid_loss = valid_loss / len(sentences)
-    valid_acc = valid_acc / len(sentences)
+    valid_loss = valid_loss / num_counter
+    valid_acc = valid_acc / num_counter
     print('validation finished, loss:{}, acc:{}'.format(valid_loss, valid_acc))
     return valid_loss, valid_acc
 
 
+def test(args, model):
+    print("test start...")
+    print("start loading data...")
+    train_inputs, train_targets = load_data('test')
+
+    print("data loaded! ")
+    # epochs = args.epoch
+    # batch_size = args.batch_size
+    # data_dir = args.data_dir
+    epochs = args.epoch
+    batch_size = args.batch_size
+
+    train_sentence_loader = Data.DataLoader(
+        dataset=train_inputs,
+        batch_size=batch_size,  # 每块的大小
+    )
+    train_label_loader = Data.DataLoader(
+        dataset=train_targets,
+        batch_size=batch_size,
+    )
+    
+    roberta_classifier_model = RoBERTa_classifier()
+    roberta_classifier_model.load_state_dict(torch.load(model))
+    # roberta_classifier_model = RoBERTa_classifier.to(args.device)
+    # print(roberta_classifier_model.state_dict()['roberta.encoder.layer.11.output.LayerNorm.bias'])
+    # for name, pa in roberta_classifier_model.named_parameters():
+    #     print(name)
+    # exit()
+
+    # fea_hooks = get_feas_by_hook(roberta_classifier_model) # 调用函数，完成注册即可
+
+    # print('The number of hooks is:', len(fea_hooks))
+
+    # for name, each in bert_classifier_model.named_modules():
+    #     if name == "bert.encoder.layer.11":
+    #         print(each.named_children())
+
+    # optimizer = torch.optim.Adam(roberta_classifier_model.parameters(), lr=1e-5)
+
+    # criterion = nn.MultiLabelSoftMarginLoss()
+    # criterion = torch.nn.MSELoss(reduction='mean')
+    # criterion = torch.nn.CrossEntropyLoss(reduction='sum')
+    # criterion = F.binary_cross_entropy()
+    # criterion = criterion.to(args.device)
+    roberta_classifier_model.eval()
+
+    iteration = 0
+
+    test_loss = 0
+    test_acc = 0
+    
+    num_counter = 0
+
+    for sentences, labels in zip(train_sentence_loader, train_label_loader):
+        num_counter += 1
+        # print('sentences are : {} and labels are: {}'.format(sentences, labels))
+        # exit()
+        # labels = labels.to(args.device)
+        # print (labels)
+        # break
+        result, cla_result = roberta_classifier_model(sentences)
+
+        binary_labels = []
+        for each in labels:
+            if each == 0:
+                binary_labels.append([1., 0.])
+            else:
+                binary_labels.append([0., 1.])
+
+        # print('The shape of the last bert layer feature is:', fea_hooks[0].fea[0].shape)
+        # print('result', result)
+        binary_labels = np.array(binary_labels,dtype=float)
+        binary_labels = torch.tensor(binary_labels)
+        # print('labels', binary_labels)
+        # print(binary_labels)
+        # exit()
+        # x=Variable(x,requires_grad=True)
+        loss = F.binary_cross_entropy_with_logits(result, binary_labels)
+        test_loss += loss.item()
+        acc = 0
+        for iterator in range(len(result)):
+            if cla_result[iterator] == labels[iterator]:
+                acc += 1
+            else:
+                continue
+        acc = acc / len(result)
+        test_acc += acc
+        # loss.retain_grad()
+        # loss.requires_grad_(True)
+        # loss.requ
+        iteration += 1
+    
+    test_loss = test_loss / num_counter
+    test_acc = test_acc / num_counter
+    print('test finished, loss:{}, acc:{}'.format(test_loss, test_acc))
+    return test_loss, test_acc
+
+def inference(args, model):
+    print("inference start...")
+
+    
+    roberta_classifier_model = RoBERTa_classifier()
+    roberta_classifier_model.load_state_dict(torch.load(model))
+
+    roberta_classifier_model.eval()
+
+    while(True):
+        sentence = input('please input the sentence: (type END to exit) : ')
+
+        if sentence == 'END':
+            break
+
+        sentence = [sentence]
+
+        prediction_result, cla_result = roberta_classifier_model(sentence)
+
+        if cla_result.item() == 0:
+            cla = '红楼风格'
+        else:
+            cla = '普通风格'
+
+        print('prediction result:{}, cla_result:{}'.format(prediction_result, cla))
+
 if __name__ == '__main__':
     time = datetime.datetime.now()
     time_str = str(time.month) + '-' + str(time.day) + '-' + str(time.hour) + '-' + str(time.minute)
-    writer = SummaryWriter('./logs/' + time_str)
-    os.system("mkdir " + args.model_save + '/' + time_str)
-    args.model_save = args.model_save + '/' + time_str
-    train(args)
+    if args.instruction == 'train':
+        writer = SummaryWriter('./logs/' + time_str)
+        os.system("mkdir " + args.model_save + '/' + time_str)
+        args.model_save = args.model_save + '/' + time_str
+        train(args)
+    elif args.instruction == 'test':
+        test(args, model = args.ckpt_path)
+    elif args.instruction == 'infer':
+        inference(args, model = args.ckpt_path)
     # eval(args)
     # test()
-    print('done :-)')
+    print('done :-) thx4using')
