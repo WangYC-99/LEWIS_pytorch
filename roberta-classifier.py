@@ -82,11 +82,11 @@ def load_data(arg_mode):
     # targets = train_df[1].values
     # train_inputs, test_inputs, train_targets, test_targets = train_test_split(sentences, targets)
     if arg_mode == 'train':
-        typed_data_dir = '/zhangpai25/wyc/lewis/data/hlm/domain-1-typed/train.txt'
-        untyped_data_dir = '/zhangpai25/wyc/lewis/data/hlm/domain-2-untyped/train.txt'
+        typed_data_dir = '/zhangpai25/wyc/lewis/lewis_wyc/datasets_used/chinese/processed/hlm_large/domain-1-typed/train.txt'
+        untyped_data_dir = '/zhangpai25/wyc/lewis/lewis_wyc/datasets_used/chinese/processed/hlm_large/domain-2-untyped/train.txt'
     elif arg_mode == 'val':
-        typed_data_dir = '/zhangpai25/wyc/lewis/data/hlm/domain-1-typed/valid.txt'
-        untyped_data_dir = '/zhangpai25/wyc/lewis/data/hlm/domain-2-untyped/valid.txt'
+        typed_data_dir = '/zhangpai25/wyc/lewis/lewis_wyc/datasets_used/chinese/processed/hlm_large/domain-1-typed/valid.txt'
+        untyped_data_dir = '/zhangpai25/wyc/lewis/lewis_wyc/datasets_used/chinese/processed/hlm_large/domain-2-untyped/valid.txt'
 
     train_inputs = []
     train_targets = []
